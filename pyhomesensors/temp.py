@@ -5,7 +5,7 @@ from datetime import timedelta, datetime
 from multiprocessing.pool import Pool
 import os
 from time import sleep
-from typing import List, NamedTuple, Dict
+from typing import List, NamedTuple, Dict, Optional
 
 import pytz
 import requests
@@ -55,6 +55,10 @@ def buffer_write(workdir, path_pattern, meas: List[Measurement]):
     for k, vs in files_meas.items():
         path = os.path.join(workdir, k)
 
+        path_dir, _ = os.path.split(path)
+
+        os.makedirs(path_dir, exist_ok=True)
+
         with open(path, 'a+') as f_in:
             for v in vs:
                 f_in.write('\t'.join((v.id, format(v.time, '%Y-%m-%dT%H:%M:%S.%f'), v.temp)) + '\n')
@@ -70,10 +74,27 @@ def buffer_purge(buffer, buffer_size):
     return to_write, buffer
 
 
-def main(parallel: int, workdir: str, path_pattern: str, delta: timedelta, ids: List[str], host: str, buffer_size: int):
+def main(pid: Optional[str], parallel: int, workdir: str, path_pattern: str, delta: timedelta, ids: List[str],
+         host: str, buffer_size: int):
     logging.getLogger(__name__).warning('Workdir: %s', workdir)
     logging.getLogger(__name__).warning('Delta: %f', delta.total_seconds())
     logging.getLogger(__name__).warning('Ids: %s', ids)
+
+    if pid:
+        while True:
+            try:
+                with open(pid, 'x') as f_pid:
+                    f_pid.write(str(os.getpid()))
+
+                break
+            except FileExistsError:
+                logging.getLogger(__name__).error('%s pid exists, killing pid', pid)
+
+                with open(pid, 'r') as f_pid:
+                    ex_pid = int(f_pid.read())
+                    os.kill(ex_pid, signal.SIGTERM)
+                    logging.getLogger(__name__).warning('sent signal to %d', ex_pid)
+                    sleep(1)
 
     assert buffer_size > 0
 
@@ -115,6 +136,9 @@ def main(parallel: int, workdir: str, path_pattern: str, delta: timedelta, ids: 
             if len(buffer):
                 buffer_write(workdir, path_pattern, buffer)
 
+            if pid:
+                os.unlink(pid)
+
 
 def parser():
     parser = ArgumentParser()
@@ -136,6 +160,13 @@ def parser():
         dest='delta',
         type=lambda x: timedelta(seconds=float(x)),
         default=timedelta(seconds=5),
+    )
+
+    parser.add_argument(
+        '--pid',
+        dest='pid',
+        type=str,
+        default=None
     )
 
     parser.add_argument(
