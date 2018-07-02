@@ -92,9 +92,15 @@ def main(pid: Optional[str], parallel: int, workdir: str, path_pattern: str, del
 
                 with open(pid, 'r') as f_pid:
                     ex_pid = int(f_pid.read())
+
+                try:
                     os.kill(ex_pid, signal.SIGTERM)
                     logging.getLogger(__name__).warning('sent signal to %d', ex_pid)
-                    sleep(1)
+                except ProcessLookupError:
+                    logging.getLogger(__name__).warning('PID %d does not exist', ex_pid)
+                    os.unlink(pid)
+
+                sleep(1)
 
     assert buffer_size > 0
 
