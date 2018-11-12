@@ -61,7 +61,7 @@ def buffer_write(workdir, path_pattern, meas: List[Measurement]):
 
         with open(path, 'a+') as f_in:
             for v in vs:
-                f_in.write('\t'.join((v.id, format(v.time, '%Y-%m-%dT%H:%M:%S.%f'), v.temp)) + '\n')
+                f_in.write('\t'.join((v.id, format(v.time, '%Y-%m-%dT%H:%M:%S.%f'), v.temp if v.temp else '')) + '\n')
 
 
 def buffer_purge(buffer, buffer_size):
